@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#22252a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>打卡</title>
+<style>
+:root{
+  --bg:#f5f6f8; --card:#fff; --fg:#222; --sub:#999;
+  --brand:#ff6a00; --brand2:#07c160; --line:#ececed;
+  --nav:#fff;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#141517; --card:#1e2024; --fg:#e8e8ea; --sub:#8a8a90; --line:#2a2c31; --nav:#1a1c20; }
+}
+/* 主题手动切换（优先级高于系统） */
+html[data-theme="light"]{
+  --bg:#f5f6f8; --card:#fff; --fg:#222; --sub:#999; --line:#ececed; --nav:#fff;
+}
+html[data-theme="dark"]{
+  --bg:#141517; --card:#1e2024; --fg:#e8e8ea; --sub:#8a8a90; --line:#2a2c31; --nav:#1a1c20;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  background:var(--bg);color:var(--fg);padding-bottom:calc(64px + env(safe-area-inset-bottom))}
+header{padding:calc(14px + env(safe-area-inset-top)) 16px 10px;font-size:19px;font-weight:600}
+main{padding:0 14px 20px}
+.card{background:var(--card);border-radius:14px;padding:14px 16px;margin-bottom:12px;
+  box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.card h3{font-size:14px;margin-bottom:10px}
+label{display:block;font-size:12px;color:var(--sub);margin:8px 0 3px}
+input,textarea,select{width:100%;border:1px solid var(--line);border-radius:8px;
+  padding:9px 10px;font-size:14px;outline:none;background:transparent;color:var(--fg)}
+textarea{min-height:64px;resize:vertical}
+button{border:none;border-radius:10px;padding:11px 14px;font-size:15px;background:var(--brand);color:#fff}
+button.ghost{background:transparent;color:var(--sub);border:1px solid var(--line)}
+button.green{background:var(--brand2)}
+button.full{width:100%;margin-top:8px}
+.row{display:flex;gap:8px}
+.row button{flex:1}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{padding:6px 12px;border-radius:16px;background:var(--line);font-size:13px}
+.chip.on{background:#ffe9d2;color:#c25100}
+.list{font-size:13px;line-height:2;color:var(--sub)}
+.list b{color:var(--fg)}
+.stats{display:flex;justify-content:space-around;text-align:center;border-radius:14px;
+  padding:14px;background:linear-gradient(135deg,#ff9a3c,#ff6a00);color:#fff;margin-bottom:12px}
+.stats b{display:block;font-size:22px}
+.stats span{font-size:11px;opacity:.9}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--nav);
+  border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;background:transparent;color:var(--sub);border-radius:0;
+  padding:9px 0 8px;font-size:11px;display:flex;flex-direction:column;align-items:center;gap:3px}
+nav button.on{color:var(--brand)}
+nav .ico{font-size:19px}
+#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:rgba(0,0,0,.82);
+  color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;opacity:0;transition:opacity .3s;
+  pointer-events:none;z-index:99}
+.done{text-decoration:line-through;opacity:.5}
+/* 日历 */
+.cal-head{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;
+  font-size:11px;color:var(--sub);margin-top:12px}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:6px}
+.cal .cd{aspect-ratio:1/1;border-radius:8px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;font-size:12px;background:transparent}
+.cal .cd b{font-size:13px;font-weight:500}
+.cal .cd span{font-size:9px;height:12px;line-height:12px}
+.cal .cd.has{background:rgba(255,106,0,.10)}
+.cal .cd.today{outline:2px solid var(--brand);font-weight:700}
+</style>
+</head>
+<body>
+
+<header id="appTitle">🧰 工具箱</header>
+<main id="view"></main>
+<nav id="nav"></nav>
+<div id="toast"></div>
+
+<script>
+/* ============================================================
+   工具箱 App · 插件式外壳
+   ------------------------------------------------------------
+   想加新功能？不需要改外壳。只要在这下面按模板新增一个
+   模块对象，并把它放进 MODULES 数组即可。每个模块自动获得
+   底部导航入口 + 独立页面 + 本地数据存储。
+
+   新模块模板（复制粘贴改一改就能用）：
+   ------------------------------------------------------------
+   {
+     id: "counter",            // 唯一英文 id，用于存数据
+     icon: "🔢",                // 导航图标 emoji
+     name: "计数器",            // 导航/标题文字
+     render(host){              // 页面渲染函数，host 是页面容器
+       const n = this.data.count || 0;
+       host.innerHTML = `<div class="card">
+         <h3>当前计数</h3><div style="font-size:36px">${n}</div>
+         <button class="full" id="addBtn">+1</button></div>`;
+       host.querySelector("#addBtn").onclick = () => {
+         this.data.count = (this.data.count||0) + 1;
+         this.save();                       // 存到 localStorage
+         this.render(host);                 // 重绘页面
+       };
+     }
+   }
+   —— this.data 自动读写、this.save() 自动持久化，其余自由发挥。
+   ============================================================ */
+
+/* ---------- 小工具 ---------- */
+const $ = s => document.querySelector(s);
+const pad = n => String(n).padStart(2,"0");
+function toast(msg){
+  const t = $("#toast");
+  t.textContent = msg; t.style.opacity = 1;
+  clearTimeout(t._tm); t._tm = setTimeout(()=>t.style.opacity = 0, 2000);
+}
+async function copy(t){
+  try{ await navigator.clipboard.writeText(t); }
+  catch(_){ const a=document.createElement("textarea"); a.value=t;
+    document.body.appendChild(a); a.select(); document.execCommand("copy"); a.remove(); }
+}
+const today = () => new Date().toISOString().slice(0,10);
+
+/* ============================================================
+   模块 1：学习打卡
+   ============================================================ */
+const StudyModule = {
+  id: "study", icon: "📚", name: "学习打卡",
+  data: {},
+  load(){ this.data = JSON.parse(localStorage.getItem("m_study")||"{}"); return this; },
+  save(){ localStorage.setItem("m_study", JSON.stringify(this.data)); },
+  render(host){
+    const d = this.data, recs = d.records || [];
+    const SUBJECTS = ["数学:","英语:","政治:","专业课:","背单词","复习错题","看课","刷题","复盘"];
+    const TPLS = d.tpls || ["数学:上课笔记\n英语:再次巩固词汇",
+                            "数学:复习上课笔记整理错题\n英语:再次巩固长难句",
+                            "数学:复习错题\n英语:复习课堂内容"];
+
+    let streak = 0, day = new Date(), days = new Set(recs.map(x=>x.day));
+    if(!days.has(today())) day.setDate(day.getDate()-1);
+    while(days.has(day.toISOString().slice(0,10))){ streak++; day.setDate(day.getDate()-1); }
+
+    host.innerHTML = `
+      <div class="stats">
+        <div><b>${streak}</b><span>连续打卡</span></div>
+        <div><b>${recs.length}</b><span>累计天数</span></div>
+        <div><b>${recs.reduce((s,x)=>s+(+x.mins||0),0)}</b><span>累计分钟</span></div>
+      </div>
+      <div class="card">
+        <h3>✏️ 今日内容</h3>
+        <label>学习时长（分钟）</label>
+        <input id="mins" type="number" placeholder="如 120" value="${d.lastMins||""}">
+        <label>科目（点一下添加，自动换行）</label>
+        <div class="chips" id="chips">${SUBJECTS.map(s=>`<span class="chip">${s}</span>`).join("")}</div>
+        <label>学习内容</label>
+        <textarea id="content" placeholder="数学:上课笔记&#10;英语:再次巩固词汇">${d.lastContent||""}</textarea>
+        <label>模板（点击使用）</label>
+        <div class="list" id="tpls">${TPLS.map((t,i)=>`<div><b>${i+1}.</b> ${t.replace(/\n/g," / ")} <a class="use" data-i="${i}" style="color:var(--brand)">使用</a></div>`).join("")}</div>
+      </div>
+      <div class="row">
+        <button id="genBtn">📋 打卡并复制</button>
+        <button id="wxBtn" class="green">💬 打开微信</button>
+      </div>
+      <div class="card">
+        <h3>📅 打卡记录</h3>
+        <div class="list">${recs.length
+          ? recs.slice().reverse().slice(0,14).map(x=>`<b>${x.day}</b> · ${x.mins||0}分钟 · ${x.content.replace(/\n/g," / ")}`).join("<br>")
+          : "暂无记录，今天开始第一天！"}</div>
+        <button class="full ghost" id="clrBtn">清空记录</button>
+      </div>`;
+
+    const c = host.querySelector("#content");
+    host.querySelectorAll("#chips .chip").forEach(ch => ch.onclick = () => {
+      const cur = c.value.replace(/\s+$/,"");
+      c.value = (cur ? cur + "\n" : "") + ch.textContent;
+      c.focus();
+    });
+    host.querySelectorAll(".use").forEach(a => a.onclick = () => {
+      c.value = TPLS[a.dataset.i]; toast("已套用模板");
+    });
+
+    host.querySelector("#genBtn").onclick = async () => {
+      const content = c.value.trim();
+      if(!content) return toast("先填写学习内容");
+      const mins = host.querySelector("#mins").value.trim() || "?";
+      const text = `时长:${mins} 分钟\n学习内容:\n${content}`;
+      d.lastMins = mins; d.lastContent = content;
+      d.records = recs.filter(x => x.day !== today());
+      d.records.push({ day: today(), mins: +mins||0, content });
+      this.save(); this.render(host);
+      await copy(text);
+      toast("✅ 已记录并复制，去微信粘贴发送");
+    };
+    host.querySelector("#wxBtn").onclick = () => location.href = "weixin://";
+    host.querySelector("#clrBtn").onclick = () => {
+      if(confirm("确定清空全部打卡记录？")){ d.records = []; this.save(); this.render(host); }
+    };
+  }
+};
+
+/* ============================================================
+   模块 2：小黑盒打卡
+   ============================================================ */
+const XhhModule = {
+  id: "xhh", icon: "🎮", name: "游戏打卡",
+  data: {},
+  load(){ this.data = JSON.parse(localStorage.getItem("m_xhh")||"{}"); return this; },
+  save(){ localStorage.setItem("m_xhh", JSON.stringify(this.data)); },
+  async req(path, method){
+    const cookie = this.data.cookie, proxy = (this.data.proxy||"").replace(/\/+$/,"");
+    if(!cookie) throw new Error("未配置 Cookie");
+    const base = proxy || "https://api.xiaoheihe.cn";
+    const r = await fetch(base + path, { method,
+      headers:{ "Cookie": cookie,
+        "User-Agent":"Mozilla/5.0 (Linux; Android 12; Pixel 5) AppleWebKit/537.36 Chrome/100 Mobile Safari/537.36 Heybox/1.3" }});
+    if(!r.ok) throw new Error("HTTP " + r.status);
+    return r.json();
+  },
+  render(host){
+    host.innerHTML = `
+      <button id="big" style="width:100%;height:170px;border-radius:50%;font-size:24px;
+        max-width:170px;margin:10px auto;display:block;
+        background:linear-gradient(145deg,#ffb400,#ff7a00)">打卡</button>
+      <div class="card"><div class="list" id="info">就绪。</div></div>
+      <div class="card">
+        <h3>⚙️ 配置</h3>
+        <label>小黑盒 Cookie</label>
+        <textarea id="cookie">${this.data.cookie||""}</textarea>
+        <label>服务器代理地址（如 https://你的域名/xhh-api，可解决跨域）</label>
+        <input id="proxy" value="${this.data.proxy||""}" placeholder="留空则直连">
+        <button class="full" id="saveBtn">保存配置</button>
+      </div>
+      <div class="card">
+        <h3>🦅 抓 Cookie（安卓）</h3>
+        <div class="list">1. 点下方打开 Reqable<br>2. 开启抓包 → 装证书 → 打开小黑盒刷几下<br>
+        3. 复制请求头里的 Cookie → 粘贴上方保存</div>
+        <a href="intent://#Intent;package=com.reqable.android;S.browser_fallback_url=https%3A%2F%2Freqable.com%2Fzh-CN%2F;end"
+           style="display:block;text-align:center;background:var(--brand);color:#fff;
+           border-radius:10px;padding:11px;margin-top:8px;text-decoration:none">打开 Reqable</a>
+      </div>`;
+
+    const info = host.querySelector("#info");
+    host.querySelector("#saveBtn").onclick = () => {
+      this.data.cookie = host.querySelector("#cookie").value.trim();
+      this.data.proxy  = host.querySelector("#proxy").value.trim();
+      this.save(); toast("✅ 配置已保存");
+    };
+    host.querySelector("#big").onclick = async () => {
+      const btn = host.querySelector("#big");
+      btn.disabled = true; btn.textContent = "打卡中…";
+      const lines = [];
+      try{
+        try{ const s = await this.req("/task/shared/sign_info/","GET");
+          const r = s.result||{}; if(r.state||r.is_sign) lines.push("ℹ️ 今日已签到"); }catch(_){}
+        const res = await this.req("/task/sign/","POST");
+        if(res.status==="ok") lines.push("🎉 签到成功！");
+        else if(res.status==="repeated") lines.push("ℹ️ 今日已签到（重复）");
+        else lines.push("⚠️ " + JSON.stringify(res));
+        const u = (await this.req("/account/home_v4/get_account_info/","GET")).result||{};
+        lines.push(`👤 ${u.username||"?"} | 🪙 ${u.coin??u.heybox_coin??"?"}`);
+      }catch(e){
+        lines.push("❌ " + e.message);
+        lines.push("跨域报错 → 填服务器代理地址后重试");
+      }
+      info.innerHTML = lines.join("<br>") + "<br><br>⏰ " + new Date().toLocaleString("zh-CN");
+      btn.disabled = false; btn.textContent = "打卡";
+    };
+  }
+};
+
+/* ============================================================
+   模块 3：专注计时（番茄钟）
+   ============================================================ */
+const PomodoroModule = {
+  id: "pomo", icon: "🍅", name: "专注",
+  data: {}, timer: null,
+  load(){ this.data = JSON.parse(localStorage.getItem("m_pomo")||'{"len":25,"today":0,"day":"","total":0}');
+    if(this.data.day !== today()){ this.data.day = today(); this.data.today = 0; } return this; },
+  save(){ localStorage.setItem("m_pomo", JSON.stringify(this.data)); },
+  render(host){
+    host.innerHTML = `
+      <div class="stats">
+        <div><b id="clock">${pad(this.data.len||25)}:00</b><span>剩余时间</span></div>
+        <div><b>${this.data.today||0}</b><span>今日番茄</span></div>
+        <div><b>${this.data.total||0}</b><span>累计番茄</span></div>
+      </div>
+      <div class="card">
+        <label>单个番茄时长（分钟）</label>
+        <input id="len" type="number" value="${this.data.len||25}">
+      </div>
+      <div class="row">
+        <button id="startBtn">▶️ 开始</button>
+        <button id="stopBtn" class="ghost">⏹ 停止</button>
+      </div>`;
+    const clock = host.querySelector("#clock");
+    let left = (this.data.len||25) * 60, running = false;
+
+    const fmt = () => `${pad(Math.floor(left/60))}:${pad(left%60)}`;
+    host.querySelector("#startBtn").onclick = () => {
+      if(running) return;
+      running = true;
+      if(this.data.len != host.querySelector("#len").value){
+        this.data.len = +host.querySelector("#len").value || 25; this.save();
+        left = this.data.len * 60; clock.textContent = fmt();
+      }
+      this.timer = setInterval(() => {
+        left--; clock.textContent = fmt();
+        if(left <= 0){
+          clearInterval(this.timer); running = false;
+          if(this.data.day !== today()){ this.data.day = today(); this.data.today = 0; }
+          this.data.today++; this.data.total++; this.save(); this.render(host);
+          toast("🍅 一个番茄完成！休息 5 分钟");
+        }
+      }, 1000);
+      toast("专注开始");
+    };
+    host.querySelector("#stopBtn").onclick = () => {
+      clearInterval(this.timer); running = false; left = (this.data.len||25)*60;
+      clock.textContent = fmt(); toast("已停止");
+    };
+  }
+};
+
+/* ============================================================
+   模块 4：待办清单
+   ============================================================ */
+const TodoModule = {
+  id: "todo", icon: "✅", name: "待办",
+  data: {},
+  load(){ this.data = JSON.parse(localStorage.getItem("m_todo")||'{"items":[]}'); return this; },
+  save(){ localStorage.setItem("m_todo", JSON.stringify(this.data)); },
+  render(host){
+    const items = this.data.items;
+    host.innerHTML = `
+      <div class="card">
+        <h3>➕ 添加任务</h3>
+        <input id="txt" placeholder="今天要做什么？">
+        <button class="full" id="addBtn">添加</button>
+      </div>
+      <div class="card">
+        <h3>📋 清单（${items.filter(i=>!i.done).length} 项待办）</h3>
+        <div class="list">${items.length ? items.map((it,i)=>
+          `<div>${it.done?'✅':'⬜'} <span class="${it.done?'done':''}">${it.t}</span>
+           <a data-i="${i}" class="del" style="float:right;color:#f44">删除</a></div>`).join("")
+          : "还没有任务"}</div>
+        <button class="full ghost" id="clrDone">清除已完成</button>
+      </div>`;
+    const add = () => {
+      const v = host.querySelector("#txt").value.trim();
+      if(!v) return;
+      items.push({ t: v, done: false, created: today() }); this.save(); this.render(host);
+    };
+    host.querySelector("#addBtn").onclick = add;
+    host.querySelector("#txt").onkeydown = e => e.key === "Enter" && add();
+    host.querySelectorAll(".list div").forEach(el => {
+      el.onclick = () => { const i = el.querySelector(".del").dataset.i;
+        items[i].done = !items[i].done;
+        items[i].doneDay = items[i].done ? today() : null;   // 记录完成日期，供日历同步
+        this.save(); this.render(host); };
+    });
+    host.querySelector("#clrDone").onclick = () => {
+      this.data.items = items.filter(i => !i.done); this.save(); this.render(host);
+    };
+  }
+};
+
+/* ============================================================
+   模块 5：运动健身打卡
+   ============================================================ */
+const FitnessModule = {
+  id: "fitness", icon: "🏃", name: "运动",
+  data: {},
+  load(){ this.data = JSON.parse(localStorage.getItem("m_fitness")||"{}"); return this; },
+  save(){ localStorage.setItem("m_fitness", JSON.stringify(this.data)); },
+  SPORTS: ["跑步","撸铁","篮球","骑行","瑜伽","跳绳","游泳","拉伸","散步"],
+  render(host){
+    const d = this.data, recs = d.records || [];
+    let streak = 0, day = new Date(), days = new Set(recs.map(x=>x.day));
+    if(!days.has(today())) day.setDate(day.getDate()-1);
+    while(days.has(day.toISOString().slice(0,10))){ streak++; day.setDate(day.getDate()-1); }
+
+    // 本周（周一起）运动次数
+    const now = new Date();
+    const wk = (now.getDay() + 6) % 7;              // 周一=0
+    const monday = new Date(now); monday.setDate(now.getDate() - wk);
+    const monStr = monday.toISOString().slice(0,10);
+    const weekCnt = recs.filter(x => x.day >= monStr).length;
+
+    host.innerHTML = `
+      <div class="stats">
+        <div><b>${streak}</b><span>连续天数</span></div>
+        <div><b>${weekCnt}</b><span>本周次数</span></div>
+        <div><b>${recs.reduce((s,x)=>s+(+x.mins||0),0)}</b><span>累计分钟</span></div>
+        <div><b>${recs.reduce((s,x)=>s+(+x.dist||0),0).toFixed(1)}</b><span>累计公里</span></div>
+      </div>
+      <div class="card">
+        <h3>🏃 今日运动</h3>
+        <label>项目（点标签快速选择）</label>
+        <div class="chips" id="sports">${this.SPORTS.map(s=>`<span class="chip">${s}</span>`).join("")}</div>
+        <input id="sport" placeholder="运动项目，如 跑步" value="${d.lastSport||""}">
+        <label>时长（分钟）</label>
+        <input id="mins" type="number" placeholder="如 30">
+        <label>距离（公里，可留空）</label>
+        <input id="dist" type="number" step="0.1" placeholder="如 5">
+        <label>备注</label>
+        <textarea id="note" placeholder="今天状态如何？"></textarea>
+      </div>
+      <div class="row">
+        <button id="saveBtn">📋 打卡并复制</button>
+        <button id="wxBtn" class="green">💬 打开微信</button>
+      </div>
+      <div class="card">
+        <h3>📅 最近记录</h3>
+        <div class="list">${recs.length
+          ? recs.slice().reverse().slice(0,10).map(x=>
+              `<b>${x.day}</b> · ${x.sport||"运动"} · ${x.mins||0}分钟${x.dist?" · "+x.dist+"km":""}${x.note?" · "+x.note:""}`).join("<br>")
+          : "还没有运动记录，动起来！"}</div>
+        <button class="full ghost" id="clrBtn">清空记录</button>
+      </div>`;
+
+    host.querySelectorAll("#sports .chip").forEach(c => c.onclick = () => {
+      host.querySelector("#sport").value = c.textContent;
+    });
+
+    host.querySelector("#saveBtn").onclick = async () => {
+      const sport = host.querySelector("#sport").value.trim() || "运动";
+      const mins = host.querySelector("#mins").value.trim() || "0";
+      const dist = host.querySelector("#dist").value.trim();
+      const note = host.querySelector("#note").value.trim();
+      if(mins === "0" && !dist) return toast("至少填时长或距离");
+      d.lastSport = sport;
+      d.records = recs.filter(x => x.day !== today());
+      d.records.push({ day: today(), sport, mins: +mins||0, dist: dist?+dist:0, note });
+      this.save(); this.render(host);
+      await copy(`运动打卡\n项目:${sport}\n时长:${mins} 分钟${dist?`\n距离:${dist} km`:""}${note?`\n备注:${note}`:""}`);
+      toast("✅ 已记录并复制，可粘贴到群里");
+    };
+    host.querySelector("#wxBtn").onclick = () => location.href = "weixin://";
+    host.querySelector("#clrBtn").onclick = () => {
+      if(confirm("确定清空全部运动记录？")){ d.records = []; this.save(); this.render(host); }
+    };
+  }
+};
+
+/* ============================================================
+   模块 6：日历（自动汇总学习 / 运动 / 待办）
+   ============================================================ */
+const CalendarModule = {
+  id: "calendar", icon: "📅", name: "日历",
+  data: {},
+  load(){ this.data = JSON.parse(localStorage.getItem("m_calendar")||"{}"); return this; },
+  save(){ localStorage.setItem("m_calendar", JSON.stringify(this.data)); },
+
+  // 汇总某天的数据
+  dayInfo(ds){
+    const st = (JSON.parse(localStorage.getItem("m_study")||"{}").records||[]).find(x=>x.day===ds);
+    const ft = (JSON.parse(localStorage.getItem("m_fitness")||"{}").records||[]).filter(x=>x.day===ds);
+    const todos = (JSON.parse(localStorage.getItem("m_todo")||'{"items":[]}').items||[]);
+    const done = todos.filter(t => t.doneDay === ds);
+    const created = todos.filter(t => !t.doneDay && t.created === ds);
+    return { st, ft, done, created };
+  },
+
+  render(host){
+    const now = new Date();
+    const ym = this.data.ym || `${now.getFullYear()}-${pad(now.getMonth()+1)}`;
+    const [Y, M] = ym.split("-").map(Number);
+    const first = new Date(Y, M-1, 1);
+    const startW = first.getDay();
+    const daysInMonth = new Date(Y, M, 0).getDate();
+    const todayStr = today();
+
+    let cells = "";
+    for(let i=0;i<startW;i++) cells += `<div></div>`;
+    for(let dd=1; dd<=daysInMonth; dd++){
+      const ds = `${Y}-${pad(M)}-${pad(dd)}`;
+      const info = this.dayInfo(ds);
+      const marks = [];
+      if(info.st) marks.push("📚");
+      if(info.ft.length) marks.push("🏃");
+      if(info.done.length) marks.push("✅");
+      const isToday = ds === todayStr;
+      cells += `<div class="cd ${isToday?'today':''} ${marks.length?'has':''}" data-d="${ds}">
+        <b>${dd}</b><span>${marks.join("")}</span></div>`;
+    }
+
+    host.innerHTML = `
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <button class="ghost" id="prev" style="padding:6px 12px">‹</button>
+          <b>${Y} 年 ${M} 月</b>
+          <button class="ghost" id="next" style="padding:6px 12px">›</button>
+        </div>
+        <div class="cal-head">${["日","一","二","三","四","五","六"].map(w=>`<div>${w}</div>`).join("")}</div>
+        <div class="cal">${cells}</div>
+        <button class="full ghost" id="todayBtn" style="margin-top:10px">回到今天</button>
+      </div>
+      <div class="card">
+        <h3>📌 图例</h3>
+        <div class="list">📚 学习打卡　🏃 运动打卡　✅ 完成待办</div>
+      </div>
+      <div class="card" id="detail">
+        <h3>🔍 当日详情</h3>
+        <div class="list">点日历上的任意一天查看详情</div>
+      </div>`;
+
+    const show = ds => {
+      const i = this.dayInfo(ds);
+      const box = host.querySelector("#detail");
+      let html = `<h3>🔍 ${ds}</h3><div class="list">`;
+      html += i.st ? `📚 学习 ${i.st.mins||0} 分钟<br>${(i.st.content||"").replace(/\n/g," / ")}<br><br>` : `📚 学习：无记录<br><br>`;
+      html += i.ft.length ? `🏃 运动：` + i.ft.map(x=>`${x.sport} ${x.mins}分钟${x.dist?" / "+x.dist+"km":""}`).join("、") + `<br><br>`
+                          : `🏃 运动：无记录<br><br>`;
+      html += `✅ 完成待办 ${i.done.length} 项` + (i.done.length ? "：" + i.done.map(t=>t.t).join("、") : "") + `<br>`;
+      html += `⬜ 当日新增待办 ${i.created.length} 项`;
+      html += `</div>`;
+      box.innerHTML = html;
+    };
+
+    host.querySelectorAll(".cd.has, .cd").forEach(c => c.onclick = () => show(c.dataset.d));
+    host.querySelector("#prev").onclick = () => {
+      const p = new Date(Y, M-2, 1);
+      this.data.ym = `${p.getFullYear()}-${pad(p.getMonth()+1)}`;
+      this.save(); this.render(host);
+    };
+    host.querySelector("#next").onclick = () => {
+      const n = new Date(Y, M, 1);
+      this.data.ym = `${n.getFullYear()}-${pad(n.getMonth()+1)}`;
+      this.save(); this.render(host);
+    };
+    host.querySelector("#todayBtn").onclick = () => {
+      this.data.ym = `${now.getFullYear()}-${pad(now.getMonth()+1)}`;
+      this.save(); this.render(host); show(todayStr);
+    };
+  }
+};
+
+/* ============================================================
+   模块 7：设置
+   ============================================================ */
+const APP_VERSION = "1.2.0";
+const CHANGELOG = [
+  { v: "1.2.0", d: "2026-10-28", items: [
+    "新增「运动打卡」：项目/时长/距离/备注，连续天数与本周次数统计",
+    "新增「日历」：月视图自动汇总学习、运动、待办完成情况",
+    "待办新增日期记录，完成的任务会按日期同步到日历",
+    "运动打卡支持一键生成打卡文字并复制" ]},
+  { v: "1.1.0", d: "2026-10-28", items: [
+    "新增「设置」：主题切换、模板管理、数据备份与恢复",
+    "新增更新日志与版本信息",
+    "数据支持一键导出为 JSON 备份" ]},
+  { v: "1.0.0", d: "2026-10-27", items: [
+    "首个版本发布：学习打卡 / 游戏打卡 / 待办 / 专注 四模块",
+    "原生打包，完全离线运行，不依赖服务器",
+    "小黑盒签到走原生通道，彻底解决跨域",
+    "灰白极简「打卡」图标" ]},
+];
+
+const SettingsModule = {
+  id: "settings", icon: "⚙️", name: "设置",
+  data: {},
+  load(){ this.data = JSON.parse(localStorage.getItem("m_settings")||"{}"); return this; },
+  save(){ localStorage.setItem("m_settings", JSON.stringify(this.data)); },
+
+  applyTheme(t){
+    if(t === "system") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", t);
+  },
+
+  render(host){
+    const theme = this.data.theme || "system";
+    const study = JSON.parse(localStorage.getItem("m_study")||"{}");
+    const tpls = study.tpls || ["数学:上课笔记\n英语:再次巩固词汇",
+                                "数学:复习上课笔记整理错题\n英语:再次巩固长难句",
+                                "数学:复习错题\n英语:复习课堂内容"];
+
+    host.innerHTML = `
+      <div class="card">
+        <h3>🎨 通用</h3>
+        <label>主题</label>
+        <div class="chips" id="themes">
+          ${[["system","跟随系统"],["light","浅色"],["dark","深色"]].map(([k,n])=>
+            `<span class="chip ${theme===k?'on':''}" data-t="${k}">${n}</span>`).join("")}
+        </div>
+        <label>默认番茄时长（分钟）</label>
+        <input id="pomoLen" type="number" value="${(JSON.parse(localStorage.getItem("m_pomo")||'{}').len)||25}">
+        <button class="full" id="saveLen">保存时长</button>
+      </div>
+
+      <div class="card">
+        <h3>🧩 学习打卡模板</h3>
+        <div class="list" id="tplList">
+          ${tpls.map((t,i)=>`<div>${i+1}. ${t.replace(/\n/g," / ")}
+            <a data-i="${i}" class="delTpl" style="float:right;color:#f44">删除</a></div>`).join("")}
+        </div>
+        <label>添加模板（用换行分隔科目）</label>
+        <textarea id="newTpl" placeholder="数学:上课笔记&#10;英语:再次巩固词汇"></textarea>
+        <button class="full" id="addTpl">＋ 添加模板</button>
+      </div>
+
+      <div class="card">
+        <h3>💾 数据管理</h3>
+        <label>备份数据（复制后自行保存）</label>
+        <textarea id="backup" readonly style="min-height:44px;font-size:11px">点击「生成备份」</textarea>
+        <div class="row" style="margin-top:8px">
+          <button id="genBackup">生成备份</button>
+          <button id="copyBackup" class="ghost">复制</button>
+        </div>
+        <label>恢复数据（粘贴备份内容）</label>
+        <textarea id="restore" placeholder="粘贴以前的备份 JSON"></textarea>
+        <button class="full" id="doRestore">恢复数据</button>
+        <button class="full ghost" id="clearAll" style="margin-top:10px">清空全部数据</button>
+      </div>
+
+      <div class="card">
+        <h3>ℹ️ 关于与更新</h3>
+        <div class="list">
+          版本：<b>v${APP_VERSION}</b><br>
+          包名：com.lcz.daka<br>
+          数据全部保存在手机本地，卸载 App 会一并清除，重要数据记得先备份。
+        </div>
+        <button class="full" id="checkUpd">检查更新</button>
+        <div class="list" id="updTip"></div>
+      </div>
+
+      <div class="card">
+        <h3>📜 更新日志</h3>
+        <div class="list">
+          ${CHANGELOG.map(c=>`<b>v${c.v}</b> <span style="font-size:11px">${c.d}</span><br>` +
+            c.items.map(i=>"· " + i).join("<br>") + "<br><br>").join("")}
+        </div>
+      </div>`;
+
+    /* 主题 */
+    host.querySelectorAll("#themes .chip").forEach(c => c.onclick = () => {
+      this.data.theme = c.dataset.t; this.save(); this.applyTheme(c.dataset.t);
+      this.render(host);
+    });
+
+    /* 番茄时长 */
+    host.querySelector("#saveLen").onclick = () => {
+      const p = JSON.parse(localStorage.getItem("m_pomo")||"{}");
+      p.len = +host.querySelector("#pomoLen").value || 25;
+      localStorage.setItem("m_pomo", JSON.stringify(p));
+      toast("✅ 已保存");
+    };
+
+    /* 模板增删 */
+    host.querySelector("#addTpl").onclick = () => {
+      const v = host.querySelector("#newTpl").value.trim();
+      if(!v) return toast("先填写模板内容");
+      const s = JSON.parse(localStorage.getItem("m_study")||"{}");
+      s.tpls = [v].concat(s.tpls || []).slice(0,10);
+      localStorage.setItem("m_study", JSON.stringify(s));
+      toast("✅ 模板已添加"); this.render(host);
+    };
+    host.querySelectorAll(".delTpl").forEach(a => a.onclick = () => {
+      const i = a.dataset.i;
+      const s = JSON.parse(localStorage.getItem("m_study")||"{}");
+      s.tpls = (s.tpls||[]).filter((_,idx)=>idx != i);
+      localStorage.setItem("m_study", JSON.stringify(s));
+      toast("已删除"); this.render(host);
+    });
+
+    /* 备份 / 恢复 / 清空 */
+    host.querySelector("#genBackup").onclick = () => {
+      const data = {};
+      for(let i=0;i<localStorage.length;i++){
+        const k = localStorage.key(i);
+        if(k.startsWith("m_")) data[k] = localStorage.getItem(k);
+      }
+      host.querySelector("#backup").value = JSON.stringify(data);
+      toast("✅ 备份已生成，可复制保存");
+    };
+    host.querySelector("#copyBackup").onclick = async () => {
+      const v = host.querySelector("#backup").value;
+      if(v && v.startsWith("{")){ await copy(v); toast("已复制备份"); }
+      else toast("请先生成备份");
+    };
+    host.querySelector("#doRestore").onclick = () => {
+      try{
+        const obj = JSON.parse(host.querySelector("#restore").value);
+        Object.keys(obj).forEach(k => localStorage.setItem(k, obj[k]));
+        toast("✅ 恢复成功，重启 App 生效");
+      }catch(e){ toast("备份内容格式不正确"); }
+    };
+    host.querySelector("#clearAll").onclick = () => {
+      if(confirm("确定清空全部数据？打卡记录、待办、模板、Cookie 都会丢失！")){
+        Object.keys(localStorage).filter(k=>k.startsWith("m_")).forEach(k=>localStorage.removeItem(k));
+        MODULES.forEach(m=>m.load && m.load());
+        this.data = {}; this.render(host); toast("已清空");
+      }
+    };
+
+    /* 检查更新 */
+    host.querySelector("#checkUpd").onclick = () => {
+      host.querySelector("#updTip").innerHTML =
+        `当前已是最新：<b>v${APP_VERSION}</b><br>` +
+        `本 App 为离线应用，更新方式是重新打包安装新版 APK，` +
+        `覆盖安装后数据不会丢失（建议更新前先做一次备份）。`;
+    };
+  }
+};
+
+/* ============================================================
+   模块注册表 —— 新增模块就加一行到这里
+   ============================================================ */
+const MODULES = [StudyModule, XhhModule, FitnessModule, CalendarModule,
+                 TodoModule, PomodoroModule, SettingsModule]
+  .map(m => m.load());
+
+/* 启动时应用已保存的主题 */
+if(SettingsModule.data.theme) SettingsModule.applyTheme(SettingsModule.data.theme);
+
+/* ---------- 外壳：导航 + 路由 ---------- */
+let current = 0;
+function renderNav(){
+  // 模块超过 5 个时只显示图标，避免底部导航拥挤
+  const iconOnly = MODULES.length > 5;
+  $("#nav").innerHTML = MODULES.map((m,i) =>
+    `<button data-i="${i}" class="${i===current?'on':''}">
+      <span class="ico">${m.icon}</span>${iconOnly ? "" : m.name}</button>`).join("");
+  $("#nav").querySelectorAll("button").forEach(b => b.onclick = () => {
+    current = +b.dataset.i; renderNav(); renderView();
+  });
+}
+function renderView(){
+  const m = MODULES[current];
+  $("#appTitle").textContent = m.icon + " " + m.name;
+  $("#view").innerHTML = "";
+  m.render($("#view"));
+}
+renderNav(); renderView();
+</script>
+</body>
+</html>
