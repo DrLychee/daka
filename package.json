@@ -1,0 +1,17 @@
+{
+  "name": "daka",
+  "version": "1.2.0",
+  "description": "打卡 · 个人多功能工具 App（学习 / 游戏 / 运动 / 日历 / 待办 / 专注）",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "sync": "cap sync android",
+    "build": "cd android && ./gradlew assembleRelease",
+    "open": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/cli": "^8.5.3",
+    "@capacitor/core": "^8.5.3"
+  }
+}
