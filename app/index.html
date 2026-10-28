@@ -236,11 +236,17 @@ const XhhModule = {
       </div>
       <div class="card">
         <h3>🦅 抓 Cookie（安卓）</h3>
-        <div class="list">1. 点下方打开 Reqable<br>2. 开启抓包 → 装证书 → 打开小黑盒刷几下<br>
-        3. 复制请求头里的 Cookie → 粘贴上方保存</div>
-        <a href="intent://#Intent;package=com.reqable.android;S.browser_fallback_url=https%3A%2F%2Freqable.com%2Fzh-CN%2F;end"
+        <div class="list">1. 安装 Reqable（官网或应用商店）<br>2. 开启抓包 → 安装 CA 证书 → 打开小黑盒刷几下<br>
+        3. 搜索 xiaoheihe → 复制请求头里的 Cookie → 粘贴上方保存</div>
+        <a href="https://reqable.com/zh-CN/" target="_blank" rel="noopener"
            style="display:block;text-align:center;background:var(--brand);color:#fff;
-           border-radius:10px;padding:11px;margin-top:8px;text-decoration:none">打开 Reqable</a>
+           border-radius:10px;padding:11px;margin-top:8px;text-decoration:none">🌐 打开 Reqable 官网（下载）</a>
+        <a href="https://reqable.com/zh-CN/docs/general/https-debugging/" target="_blank" rel="noopener"
+           style="display:block;text-align:center;color:var(--sub);padding:10px;
+           text-decoration:none;font-size:13px">📖 证书安装抓包图文教程 ›</a>
+        <div class="list" style="font-size:11px">
+          提示：抓完 Cookie 回到本页面粘贴即可，同一份 Cookie 在 App 和网页版通用。
+        </div>
       </div>`;
 
     const info = host.querySelector("#info");
@@ -542,9 +548,11 @@ const CalendarModule = {
 /* ============================================================
    模块 7：设置
    ============================================================ */
-const APP_VERSION = "1.3.0";
+const APP_VERSION = "1.3.1";
 const CHANGELOG = [
-  { v: "1.3.0", d: "2026-10-28", items: [
+  { v: "1.3.1", d: "2026-10-29", items: [
+    "修复「打开 Reqable」按钮点击无反应（intent 链接在 WebView 不支持）",
+    "改为跳转官网下载 + 官方抓包证书教程链接" ]},
     "设置页「检查更新」支持联网查询 GitHub 最新版本",
     "发现新版本直接显示更新内容并可一键下载安装包",
     "版本号自动比对，已是最新会给出提示" ]},
