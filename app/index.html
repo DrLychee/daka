@@ -542,8 +542,12 @@ const CalendarModule = {
 /* ============================================================
    模块 7：设置
    ============================================================ */
-const APP_VERSION = "1.2.0";
+const APP_VERSION = "1.3.0";
 const CHANGELOG = [
+  { v: "1.3.0", d: "2026-10-28", items: [
+    "设置页「检查更新」支持联网查询 GitHub 最新版本",
+    "发现新版本直接显示更新内容并可一键下载安装包",
+    "版本号自动比对，已是最新会给出提示" ]},
   { v: "1.2.0", d: "2026-10-28", items: [
     "新增「运动打卡」：项目/时长/距离/备注，连续天数与本周次数统计",
     "新增「日历」：月视图自动汇总学习、运动、待办完成情况",
@@ -621,10 +625,12 @@ const SettingsModule = {
         <div class="list">
           版本：<b>v${APP_VERSION}</b><br>
           包名：com.lcz.daka<br>
-          数据全部保存在手机本地，卸载 App 会一并清除，重要数据记得先备份。
+          开源地址：github.com/DrLychee/daka<br>
+          数据全部保存在本地，卸载 App 会一并清除，重要数据记得先备份。
         </div>
         <button class="full" id="checkUpd">检查更新</button>
         <div class="list" id="updTip"></div>
+        <div id="updBox"></div>
       </div>
 
       <div class="card">
@@ -696,12 +702,46 @@ const SettingsModule = {
       }
     };
 
-    /* 检查更新 */
-    host.querySelector("#checkUpd").onclick = () => {
-      host.querySelector("#updTip").innerHTML =
-        `当前已是最新：<b>v${APP_VERSION}</b><br>` +
-        `本 App 为离线应用，更新方式是重新打包安装新版 APK，` +
-        `覆盖安装后数据不会丢失（建议更新前先做一次备份）。`;
+    /* 检查更新（联网查询 GitHub Releases） */
+    const cmpVer = (a,b) => {
+      const pa = a.split(".").map(Number), pb = b.split(".").map(Number);
+      for(let i=0;i<3;i++){ const d=(pa[i]||0)-(pb[i]||0); if(d) return d; }
+      return 0;
+    };
+    const updBtn = host.querySelector("#checkUpd"), updTip = host.querySelector("#updTip"),
+          updBox = host.querySelector("#updBox");
+    updBtn.onclick = async () => {
+      updTip.textContent = "正在检查更新…"; updBox.innerHTML = "";
+      try{
+        const GITHUB_API = "https://api.github.com/repos/DrLychee/daka/releases/latest";
+        const r = await fetch(GITHUB_API, { headers:{ "Accept":"application/vnd.github+json" } });
+        if(!r.ok) throw new Error("HTTP " + r.status);
+        const d = await r.json();
+        const latest = (d.tag_name || "").replace(/^v/, "");
+        const asset  = (d.assets || []).find(a => a.name.endsWith(".apk"));
+        if(cmpVer(latest, APP_VERSION) > 0){
+          updTip.innerHTML = `🎉 发现新版本 <b>v${latest}</b>（当前 v${APP_VERSION}）· ${(d.published_at||"").slice(0,10)}`;
+          updBox.innerHTML = `
+            <div class="card" style="background:rgba(255,106,0,.08);margin-top:10px">
+              <h3>🆕 v${latest} 更新内容</h3>
+              <div class="list">${(d.body||"暂无说明").replace(/\n/g,"<br>")}</div>
+              ${asset ? `<a href="${asset.browser_download_url}" target="_blank" rel="noopener"
+                 style="display:block;text-align:center;background:var(--brand);color:#fff;
+                 border-radius:10px;padding:12px;margin-top:10px;text-decoration:none">
+                 ⬇️ 下载更新（${(asset.size/1048576).toFixed(1)} MB）</a>` : ""}
+              <a href="${d.html_url}" target="_blank" rel="noopener"
+                 style="display:block;text-align:center;color:var(--sub);
+                 padding:10px;text-decoration:none;font-size:13px">在 GitHub 查看发布页 ›</a>
+            </div>
+            <div class="list" style="margin-top:8px">
+              下载完成后点击安装包即可覆盖安装，<b>数据不会丢失</b>（建议先备份）。
+            </div>`;
+        }else{
+          updTip.innerHTML = `✅ 当前已是最新版本 <b>v${APP_VERSION}</b>`;
+        }
+      }catch(e){
+        updTip.innerHTML = `❌ 检查失败：${e.message}<br>请确认网络后重试，或手动前往 GitHub Releases 查看。`;
+      }
     };
   }
 };
